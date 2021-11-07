@@ -1,0 +1,5 @@
+package standard
+
+func main() {
+
+}

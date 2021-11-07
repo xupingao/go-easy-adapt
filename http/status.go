@@ -143,3 +143,6 @@ var statusText = map[int]string{
 func StatusText(code int) string {
 	return statusText[code]
 }
+const SchemeHTTP  = "http"
+
+const SchemeHTTPS = "https"

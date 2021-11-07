@@ -1,22 +1,40 @@
 package http
 
 import (
-	"bufio"
+	"net"
 	"net/http"
 )
 
 type HTTPResponse interface {
 	Write([]byte) (int, error)
-	SetHeader(key, value string)
-	GetHeader() map[string][]string
-	WriteHeader(statusCode int)
-	Hijack() (interface{},*bufio.ReadWriter, error)
-	Flush()
+
 	Status() int
-	Size() int
+	Size() int64
+	Hijacker(fn func(net.Conn)) error
+
+	Header() Header
+
+	WriteHeader(statusCode int)
+	HeaderWritten() bool
+
+	//Flush()
+
 	WriteString(string) (int, error)
-	Written() bool
+
 	WriteHeaderNow()
-	Pusher() http.Pusher
+
+	// KeepBody(bool)
+	// SetWriter(io.Writer)
+	// Writer() io.Writer
+	// Body() []byte
+	// Redirect(string, int)
+	// NotFound()
+	// SetCookie(*http.Cookie)
+	// ServeFile(string)
+	// Stream(func(io.Writer) bool)
+	// Error(string, ...int)
 }
 
+type HTTP2Response interface {
+	Pusher() http.Pusher
+}

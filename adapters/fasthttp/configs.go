@@ -1,6 +1,7 @@
 package fasthttp
 
 import (
+	"crypto/tls"
 	"time"
 
 	"github.com/xupingao/go-easy-adapt/http"
@@ -8,26 +9,24 @@ import (
 
 type Config struct {
 	Address      string        // TCP address to listen on.
+	Scheme       string        // TCP address to listen on.
 	ReadTimeout  time.Duration // Maximum duration before timing out read of the request.
 	WriteTimeout time.Duration // Maximum duration before timing out write of the response.
 
-	TLS         bool
-	//TLSConfig   *tls.Config
-	TLSCertFile string // TLS certificate file path.
-	TLSKeyFile  string // TLS key file path.
+	TLS          bool
+	TLSConfig    *tls.Config
+	TLSCertFile  string // TLS certificate file path.
+	TLSKeyFile   string // TLS key file path.
+	DisableHTTP2 bool
 
-	handler http.Handler
+	Handler http.Handler
 
 	MaxConnsPerIP      int
 	MaxRequestsPerConn int
 	MaxRequestBodySize int
-}
 
-var DefaultConfig *Config = &Config{
-	Address: ":8080",
-	TLS:     false,
-
-	handler: DefaultHandler,
+	ListenerCreator    http.ListenerCreator
+	TLSListenerCreator http.TLSListenerCreator
 }
 
 // func (c *Config) Print(engine string) {
@@ -47,6 +46,12 @@ func Address(v string) ConfigSetter {
 	}
 }
 
+func Scheme(v string) ConfigSetter {
+	return func(c *Config) {
+		c.Scheme = v
+	}
+}
+
 func TLS(v bool) ConfigSetter {
 	return func(c *Config) {
 		c.TLS = v
@@ -55,14 +60,14 @@ func TLS(v bool) ConfigSetter {
 
 func Handler(h http.Handler) ConfigSetter {
 	return func(c *Config) {
-		c.handler = h
+		c.Handler = h
 	}
 }
-//func TLSConfig(v *tls.Config) ConfigSetter {
-//	return func(c *Config) {
-//		c.TLSConfig = v
-//	}
-//}
+func TLSConfig(v *tls.Config) ConfigSetter {
+	return func(c *Config) {
+		c.TLSConfig = v
+	}
+}
 
 // TLSCertFile TLS certificate file path.
 func TLSCertFile(v string) ConfigSetter {
@@ -75,6 +80,12 @@ func TLSCertFile(v string) ConfigSetter {
 func TLSKeyFile(v string) ConfigSetter {
 	return func(c *Config) {
 		c.TLSKeyFile = v
+	}
+}
+
+func DisableHTTP2(v bool) ConfigSetter {
+	return func(c *Config) {
+		c.DisableHTTP2 = v
 	}
 }
 
@@ -92,7 +103,6 @@ func WriteTimeout(v time.Duration) ConfigSetter {
 	}
 }
 
-
 func MaxConnsPerIP(v int) ConfigSetter {
 	return func(c *Config) {
 		c.MaxConnsPerIP = v
@@ -108,5 +118,17 @@ func MaxRequestsPerConn(v int) ConfigSetter {
 func MaxRequestBodySize(v int) ConfigSetter {
 	return func(c *Config) {
 		c.MaxRequestBodySize = v
+	}
+}
+
+func ListenerCreator(v http.ListenerCreator) ConfigSetter {
+	return func(c *Config) {
+		c.ListenerCreator = v
+	}
+}
+
+func TLSListenerCreator(v http.TLSListenerCreator) ConfigSetter {
+	return func(c *Config) {
+		c.TLSListenerCreator = v
 	}
 }

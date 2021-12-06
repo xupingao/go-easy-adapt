@@ -1,23 +1,20 @@
 package standard
 
 import (
-	"context"
 	"crypto/tls"
+	"github.com/webx-top/echo/engine"
+	"github.com/xupingao/go-easy-adapt/http"
 	"io"
 	"io/ioutil"
 	"mime/multipart"
 	"net"
 	net_HTTP "net/http"
-	"net/url"
-
-	"github.com/webx-top/echo/logger"
-	"github.com/xupingao/go-easy-adapt/http"
 )
 
-var _ http.Context = context_{}
+var _ http.Context = (*std_context)(nil)
 
-func wrapConext(writer net_HTTP.ResponseWriter, req *net_HTTP.Request) http.Context {
-	return context_{
+func wrapStdConext(writer net_HTTP.ResponseWriter, req *net_HTTP.Request) http.Context {
+	return std_context{
 		rawRequest:        req,
 		rawResponseWriter: writer,
 		request:           &httpRequest{Request: req},
@@ -25,69 +22,72 @@ func wrapConext(writer net_HTTP.ResponseWriter, req *net_HTTP.Request) http.Cont
 	}
 }
 
-type context_ struct {
+type std_context struct {
 	rawRequest        *net_HTTP.Request
 	rawResponseWriter net_HTTP.ResponseWriter
-
-	request  http.HTTPRequest
-	response http.HTTPResponse
+	request           http.HTTPRequest
+	response          http.HTTPResponse
 }
 
-func (c context_) Request() http.HTTPRequest {
+func (c std_context) Request() http.HTTPRequest {
 	return c.request
 }
 
-func (c context_) Response() http.HTTPResponse {
+func (c std_context) Response() http.HTTPResponse {
 	return c.response
 }
 
-func (c context_) Redirect(code int, url string) {
+func (c std_context) Redirect(code int, url string) {
 	net_HTTP.Redirect(c.rawResponseWriter, c.rawRequest, url, code)
 }
 
-///////////////////////////////////////////////////////////////
+//----------------
+// Param
+//----------------
+
+var defaultMaxRequestBodySize int64 = 32 << 20 // 32 MB
+
+var _ http.HTTPRequest = (*httpRequest)(nil)
+
 type httpRequest struct {
 	*net_HTTP.Request
-	// context Context
-	url *URL
-}
 
-// func (r *httpRequest) Context() context.Context {
-// 	panic("")
-// }
-// func (r *httpRequest) WithContext(ctx context.Context) http.HTTPRequest {
-// 	panic("")
-// }
-
-func (r *httpRequest) Clone(ctx context.Context) *http.HTTPRequest {
-	panic("")
+	url      http.URL
+	query    http.Values
+	postForm http.Values
+	form     http.Values
 }
 
 func (r *httpRequest) Scheme() string {
-	// if r.IsTLS() {
-	// 	return echo.SchemeHTTPS
-	// }
-	return r.Request.URL.Scheme
-	// if len(r.request.URL.Scheme) > 0 {
-	// 	return r.request.URL.Scheme
-	// }
-	// return echo.SchemeHTTP
+	if r.IsTLS() {
+		return http.SchemeHTTPS
+	}
+
+	if len(r.Request.URL.Scheme) > 0 {
+		return r.Request.URL.Scheme
+	}
+	return http.SchemeHTTP
 }
+
 func (r *httpRequest) Proto() string {
 	return r.Request.Proto
 }
+
 func (r *httpRequest) Host() string {
 	return r.Request.Host
 }
+
 func (r *httpRequest) SetHost(h string) {
 	r.Request.Host = h
 }
+
 func (r *httpRequest) URL() http.URL {
 	if r.url == nil {
 		r.url = &URL{url: r.Request.URL}
 	}
 	return r.url
 }
+
 func (r *httpRequest) URI() string {
 	return r.Request.RequestURI
 }
@@ -103,11 +103,11 @@ func (r *httpRequest) SetMethod(method string) {
 }
 
 func (r *httpRequest) Header() http.Header {
-	panic("")
+	return r.Request.Header
 }
 
 func (r *httpRequest) RemoteAddr() string {
-	panic("")
+	return r.Request.RemoteAddr
 }
 
 // func (r *httpRequest) RealIP() string {
@@ -131,61 +131,94 @@ func (r *httpRequest) SetBody(reader io.Reader) {
 }
 
 func (r *httpRequest) Form() http.Values {
-	panic("")
+	if r.form == nil {
+		r.MultipartForm()
+		r.form = &values{&r.Request.Form}
+	}
+
+	return r.form
 }
-func (r *httpRequest) FormValue(string) string {
-	panic("")
+
+func (r *httpRequest) FormValue(name string) string {
+	r.Form()
+	return r.form.Get(name)
 }
+
 func (r *httpRequest) PostForm() http.Values {
-	panic("")
+	if r.postForm == nil {
+		r.postForm = &values{rawValues: &r.Request.PostForm}
+	}
+	return r.postForm
 }
 
-// MultipartForm returns the multipart form.
-func (r *httpRequest) MultipartForm() *multipart.Form {
-	panic("")
+func (r *httpRequest) MultipartForm() (*multipart.Form, error) {
+	if r.Request.MultipartForm == nil {
+		err := r.Request.ParseMultipartForm(defaultMaxRequestBodySize)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return r.Request.MultipartForm, nil
 }
+
 func (r *httpRequest) Referer() string {
-	panic("")
-}
-func (r *httpRequest) UserAgent() string {
-	panic("")
-}
-func (r *httpRequest) Size() int64 {
-	panic("")
+	return r.Request.Referer()
 }
 
-func (r *httpRequest) Cookies() []*http.Cookie {
-	panic("")
+func (r *httpRequest) UserAgent() string {
+	return r.Request.UserAgent()
 }
-func (r *httpRequest) Cookie(name string) (*http.Cookie, error) {
-	panic("")
+
+func (r *httpRequest) Size() int64 {
+	return r.Request.ContentLength
 }
-func (r *httpRequest) AddCookie(c *http.Cookie) {
-	panic("")
+
+//func (r *httpRequest) Cookies() []*http.Cookie {
+//	panic("")
+//}
+
+func (r *httpRequest) Cookie(name string) string {
+	if cookie, err := r.Request.Cookie(name); err == nil {
+		return cookie.Value
+	}
+	return ``
 }
+//func (r *httpRequest) AddCookie(c *http.Cookie) {
+//	panic("")
+//}
+
 func (r *httpRequest) Query() http.Values {
-	panic("")
+	if r.query == nil {
+		if r.url == nil {
+			r.url = &URL{url: r.Request.URL}
+		}
+		r.query = r.url.Query()
+	}
+	return r.query
 }
 
 func (r *httpRequest) TransferEncoding() []string {
-	panic("")
+	return r.Request.TransferEncoding
 }
 func (r *httpRequest) Trailer() http.Header {
-	panic("")
+	return r.Request.Trailer
 }
 
 func (r *httpRequest) MultipartReader() (*multipart.Reader, error) {
-	panic("")
+	return r.Request.MultipartReader()
 }
 
 func (r *httpRequest) IsTLS() bool {
-	panic("")
-}
-func (r *httpRequest) TLS() *tls.ConnectionState {
-	panic("")
+	return r.Request.TLS != nil
 }
 
-/////////////////////////////////////////////////////////////////
+func (r *httpRequest) TLS() *tls.ConnectionState {
+	return r.Request.TLS
+}
+
+//----------------
+// Param
+//----------------
 const (
 	noWritten     = -1
 	defaultStatus = http.StatusOK
@@ -193,7 +226,7 @@ const (
 
 type httpResponse struct {
 	net_HTTP.ResponseWriter
-	logger logger.Logger
+	//logger logger.Logger
 	writen bool
 	status int
 	size   int64
@@ -201,9 +234,9 @@ type httpResponse struct {
 
 func (r *httpResponse) WriteHeader(statusCode int) {
 	if statusCode > 0 && r.status != statusCode {
-		if r.Written() {
-			r.logger.Warn("response already committed")
-		}
+		//if r.Written() {
+		//	r.logger.Warn("response already committed")
+		//}
 		r.status = statusCode
 	}
 }
@@ -245,6 +278,10 @@ func (r *httpResponse) WriteString(s string) (n int, err error) {
 	return
 }
 
+func (r *httpResponse) SetCookie(cookie *net_HTTP.Cookie) {
+	r.Header().Add(engine.HeaderSetCookie, cookie.String())
+}
+
 func (r *httpResponse) Status() int {
 	return r.status
 }
@@ -268,7 +305,7 @@ func (r *httpResponse) Header() http.Header {
 }
 
 func (r *httpResponse) HeaderWritten() bool {
-	panic("")
+	return r.writen
 }
 
 func (r *httpResponse) Flush() {
@@ -281,64 +318,4 @@ func (r *httpResponse) Pusher() net_HTTP.Pusher {
 		return pusher
 	}
 	return nil
-}
-
-type URL struct {
-	url   *url.URL
-	query http.Values
-}
-
-func (u *URL) SetPath(path string) {
-	u.url.Path = path
-}
-
-func (u *URL) RawPath() string {
-	return u.url.EscapedPath()
-}
-
-func (u *URL) Path() string {
-	return u.url.Path
-}
-
-func (u *URL) QueryValue(name string) string {
-	if u.query == nil {
-		u.query = http.Values(u.url.Query())
-	}
-	return u.query.Get(name)
-}
-
-func (u *URL) QueryValues(name string) []string {
-	u.Query()
-	if v, ok := u.query[name]; ok {
-		return v
-	}
-	return []string{}
-}
-
-func (u *URL) Query() http.Values {
-	if u.query == nil {
-		u.query = http.Values(u.url.Query())
-	}
-	return u.query
-}
-
-func (u *URL) reset(url *url.URL) {
-	u.url = url
-	u.query = nil
-}
-
-func (u *URL) RawQuery() string {
-	return u.url.RawQuery
-}
-
-func (u *URL) SetRawQuery(rawQuery string) {
-	u.url.RawQuery = rawQuery
-}
-
-func (u *URL) String() string {
-	return u.url.String()
-}
-
-func (u *URL) Object() interface{} {
-	return u.url
 }

@@ -1,5 +1,0 @@
-package standard
-
-func main() {
-
-}

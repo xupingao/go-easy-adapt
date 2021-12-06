@@ -2,53 +2,64 @@ package standard
 
 import (
 	"context"
+	"crypto/tls"
 	"net"
 	net_HTTP "net/http"
 
 	"github.com/xupingao/go-easy-adapt/http"
 )
 
-var _ http.Server = &server{}
+var defalutAddr = ":8080"
+var defalutScheme = "tcp"
+
+var _ http.Server = (*server)(nil)
 
 type server struct {
 	*net_HTTP.Server
 	config   *Config
-
+	listener net.Listener
 }
 
-func (s *server) SetListener(listener *net.Listener) {
-	s.config.listener = listener
+func (s *server) SetListener(listener net.Listener) {
+	s.listener = listener
+}
+
+func (s *server) SetHandler(h http.Handler) {
+	s.config.Handler = h
 }
 
 func NewDefaultServer() http.Server {
-	return NewWithConfig(DefaultConfig)
+	return NewWithConfig(defaultConfig())
+}
+
+func defaultConfig() *Config {
+	return &Config{
+		Address:            defalutAddr,
+		Scheme:             defalutScheme,
+		TLS:                false,
+		Handler:            DefaultHandler(),
+		ListenerCreator:    http.NewListener,
+		TLSListenerCreator: http.NewTLSListener,
+	}
 }
 
 func New(addr string, opts ...ConfigSetter) *server {
-	c := &Config{Address: addr}
-	c.handler = DefaultHandler
+	c := defaultConfig()
+	c.Address = addr
 	for _, opt := range opts {
 		opt(c)
 	}
 	return NewWithConfig(c)
 }
 
-type defaultHandler struct{}
-
-var DefaultHandler http.Handler = &defaultHandler{}
-
-func (h *defaultHandler) ServeHTTP(ctx http.Context) {
-	ctx.Response().WriteString("Handler of this server is not set")
-}
-
 func NewWithTLS(addr, certFile, keyFile string, opts ...ConfigSetter) *server {
-	c := &Config{
-		Address:     addr,
-		TLS:         true,
-		TLSCertFile: certFile,
-		TLSKeyFile:  keyFile,
-		handler:     DefaultHandler,
-	}
+	c := defaultConfig()
+
+	c.Address = addr
+	c.TLS = true
+	c.TLSCertFile = certFile
+	c.TLSKeyFile = keyFile
+
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -57,60 +68,110 @@ func NewWithTLS(addr, certFile, keyFile string, opts ...ConfigSetter) *server {
 
 func NewWithConfig(c *Config) (s *server) {
 	s = &server{
-		Server: &net_HTTP.Server{
-			ReadTimeout:  c.ReadTimeout,
-			WriteTimeout: c.WriteTimeout,
-			Addr:         c.Address,
-			Handler:      wrapHandler(c.handler),
-		},
+		Server: &net_HTTP.Server{},
 		config: c,
 	}
 	return
 }
 
-func (s server) SetHandler(h http.Handler) {
-	s.config.handler = h
-	s.Server.Handler = wrapHandler(h)
+func (s *server) Run() error {
+	s.applyConfig()
+	if err := s.initListener(); err != nil {
+		return err
+	}
+
+	return s.Serve(s.listener)
 }
 
-func (s server) Run() error {
-	if s.config.TLS {
-		if s.config.TLSConfig != nil {
-			s.Server.TLSConfig = s.config.TLSConfig
-		}
-		return s.Server.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
+func (s *server) ListenAndServeTLS(addr, certFile, keyFile string, handler http.Handler) error {
+	s.config.Handler = handler
+	s.config.Address = addr
+	s.config.TLS = true
+	s.config.TLSCertFile = certFile
+	s.config.TLSKeyFile = keyFile
+	return s.Run()
+}
 
-	} else {
-		return s.Server.ListenAndServe()
+func (s *server) ListenAndServe(addr string, handler http.Handler) error {
+	s.config.Handler = handler
+	s.config.Address = addr
+	s.config.TLS = false
+	return s.Run()
+}
+
+func (s *server) initTlSConfig() {
+	if s.config.TLSConfig != nil {
+		return
+	}
+	s.config.TLSConfig = new(tls.Config)
+	if len(s.config.TLSCertFile) > 0 && len(s.config.TLSKeyFile) > 0 {
+		cert, err := tls.LoadX509KeyPair(s.config.TLSCertFile, s.config.TLSKeyFile)
+		if err != nil {
+			panic(err)
+		}
+		s.config.TLSConfig.Certificates = append(s.config.TLSConfig.Certificates, cert)
+	}
+	if !s.config.DisableHTTP2 {
+		s.config.TLSConfig.NextProtos = append(s.config.TLSConfig.NextProtos, "h2")
 	}
 }
 
-func (s server) Serve(ln net.Listener) error {
-	if s.config.TLS {
-		if s.config.TLSConfig != nil {
-			s.Server.TLSConfig = s.config.TLSConfig
-		}
-		s.Server.ServeTLS(ln, s.config.TLSCertFile, s.config.TLSKeyFile)
-	} else {
-		s.Server.Serve(ln)
+func (s *server) initListener() error {
+	if s.listener != nil {
+		return nil
 	}
-	return s.Server.Serve(ln)
+
+	var ln net.Listener
+	var err error
+
+	if s.config.TLS {
+		s.initTlSConfig()
+		if s.config.TLSListenerCreator != nil {
+			ln, err = s.config.TLSListenerCreator(s.config.Address, s.config.Scheme, s.config.TLSConfig)
+		} else {
+			ln, err = http.NewTLSListener(s.config.Address, s.config.Scheme, s.config.TLSConfig)
+		}
+		if err == nil {
+			s.listener = ln
+		}
+		return err
+	}
+	if s.config.ListenerCreator != nil {
+		ln, err = s.config.ListenerCreator(s.config.Address, s.config.Scheme)
+	} else {
+		ln, err = http.NewListener(s.config.Address, s.config.Scheme)
+	}
+	if err == nil {
+		s.listener = ln
+	}
+	return err
 }
 
-func (s server) ListenAndServeTLS(addr, certFile, keyFile string, engine http.Handler) error {
-	s.Server.Addr = addr
-	s.Server.Handler = wrapHandler(engine)
-	return s.Server.ListenAndServeTLS(certFile, keyFile)
+func (s *server) ApplyConfig() {
+	s.applyConfig()
 }
-
-func (s server) ListenAndServe(addr string, engine http.Handler) error {
-	s.Server.Addr = addr
-	s.Server.Handler = wrapHandler(engine)
-	return s.Server.ListenAndServe()
+func (s *server) applyConfig() {
+	if s.config.Handler == nil {
+		s.config.Handler = DefaultHandler()
+	}
+	if s.config.TLSConfig != nil {
+		s.Server.TLSConfig = s.config.TLSConfig
+	}
+	s.Server.Handler = wrapHandler(s.config.Handler)
+	s.Server.ReadTimeout = s.config.ReadTimeout
+	s.Server.WriteTimeout = s.config.WriteTimeout
+	s.Server.Addr = s.config.Address
 }
 
 func (s server) DisposedServer() interface{} {
 	return s.Server
+}
+
+func (s *server) Stop() error {
+	if s.listener == nil {
+		return nil
+	}
+	return s.listener.Close()
 }
 
 func (s *server) Shutdown(ctx context.Context) error {
@@ -119,15 +180,21 @@ func (s *server) Shutdown(ctx context.Context) error {
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-type handler struct {
-	engine http.Handler
+func DefaultHandler() http.Handler {
+	return http.HandlerFunc(func(ctx http.Context) {
+		ctx.Response().WriteString("Handler of this server is not set")
+	})
 }
 
-func wrapHandler(engine http.Handler) handler {
-	return handler{engine: engine}
+type handlerWrapper struct {
+	handler http.Handler
 }
 
-func (h handler) ServeHTTP(w net_HTTP.ResponseWriter, r *net_HTTP.Request) {
-	ctx := wrapConext(w, r)
-	h.engine.ServeHTTP(ctx)
+func wrapHandler(handler http.Handler) handlerWrapper {
+	return handlerWrapper{handler: handler}
+}
+
+func (wp handlerWrapper) ServeHTTP(w net_HTTP.ResponseWriter, r *net_HTTP.Request) {
+	ctx := wrapStdConext(w, r)
+	wp.handler.ServeHTTP(ctx)
 }

@@ -23,6 +23,7 @@ type HTTPResponse interface {
 
 	WriteHeaderNow()
 
+	SetCookie(*http.Cookie)
 	// KeepBody(bool)
 	// SetWriter(io.Writer)
 	// Writer() io.Writer

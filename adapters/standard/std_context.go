@@ -18,7 +18,7 @@ func wrapStdConext(writer net_HTTP.ResponseWriter, req *net_HTTP.Request) http.C
 		rawRequest:        req,
 		rawResponseWriter: writer,
 		request:           &httpRequest{Request: req},
-		response:          &httpResponse{ResponseWriter: writer},
+		response:          &httpResponse{ResponseWriter: writer, writer: writer},
 	}
 }
 
@@ -183,6 +183,7 @@ func (r *httpRequest) Cookie(name string) string {
 	}
 	return ``
 }
+
 //func (r *httpRequest) AddCookie(c *http.Cookie) {
 //	panic("")
 //}
@@ -230,6 +231,7 @@ type httpResponse struct {
 	writen bool
 	status int
 	size   int64
+	writer io.Writer
 }
 
 func (r *httpResponse) WriteHeader(statusCode int) {
@@ -318,4 +320,12 @@ func (r *httpResponse) Pusher() net_HTTP.Pusher {
 		return pusher
 	}
 	return nil
+}
+
+func (r *httpResponse) SetWriter(w io.Writer) {
+	r.writer = w
+}
+
+func (r *httpResponse) Writer() io.Writer {
+	return r.writer
 }

@@ -1,6 +1,7 @@
 package http
 
 import (
+	"io"
 	"net"
 	"net/http"
 )
@@ -25,12 +26,11 @@ type HTTPResponse interface {
 
 	SetCookie(*http.Cookie)
 	// KeepBody(bool)
-	// SetWriter(io.Writer)
-	// Writer() io.Writer
+	SetWriter(io.Writer)
+	Writer() io.Writer
 	// Body() []byte
 	// Redirect(string, int)
 	// NotFound()
-	// SetCookie(*http.Cookie)
 	// ServeFile(string)
 	// Stream(func(io.Writer) bool)
 	// Error(string, ...int)

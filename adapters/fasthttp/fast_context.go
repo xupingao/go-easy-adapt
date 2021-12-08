@@ -22,7 +22,7 @@ func wrapFastConext(requestCtx *fasthttp.RequestCtx) http.Context {
 	return fast_context{
 		rawRequestCtx: requestCtx,
 		request:       &httpRequest{RequestCtx: requestCtx},
-		response:      &httpResponse{RequestCtx: requestCtx},
+		response:      &httpResponse{RequestCtx: requestCtx, writer:requestCtx},
 	}
 }
 
@@ -166,13 +166,13 @@ func (r *httpRequest) Form() http.Values {
 	r.RequestCtx.PostArgs().VisitAll(func(k, v []byte) {
 		form.Add(Bytes2str(k), Bytes2str(v))
 	})
-	mf,err := r.MultipartForm()
+	mf, err := r.MultipartForm()
 	if err == nil && mf != nil && mf.Value != nil {
 		for key, vals := range mf.Value {
 			form[key] = vals
 		}
 	}
-	r.form = &formValues{rawValues:&form}
+	r.form = &formValues{rawValues: &form}
 	return r.form
 }
 func (r *httpRequest) FormValue(key string) string {
@@ -180,7 +180,7 @@ func (r *httpRequest) FormValue(key string) string {
 }
 func (r *httpRequest) PostForm() http.Values {
 	if r.postForm == nil {
-		r.postForm = &argValues{args:r.PostArgs()}
+		r.postForm = &argValues{args: r.PostArgs()}
 	}
 	r.initValues()
 	return r.postForm
@@ -242,6 +242,7 @@ type httpResponse struct {
 	writen bool
 	status int
 	size   int64
+	writer io.Writer
 	header http.Header
 }
 
@@ -307,4 +308,12 @@ func (r *httpResponse) Header() http.Header {
 
 func (r *httpResponse) HeaderWritten() bool {
 	return r.writen
+}
+
+func (r *httpResponse) SetWriter(w io.Writer) {
+	r.writer = w
+}
+
+func (r *httpResponse) Writer() io.Writer {
+	return r.writer
 }

@@ -1,6 +1,9 @@
 package http
 
-import "context"
+import (
+	"context"
+	"net"
+)
 
 type Server interface {
 	ListenAndServe(address string, engine Handler) error
@@ -8,6 +11,7 @@ type Server interface {
 	DisposedServer() interface{}
 	Run() error
 	SetHandler(Handler)
+	SetListener(listener net.Listener)
 	Shutdown(ctx context.Context) error
 }
 

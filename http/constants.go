@@ -175,7 +175,9 @@ const (
 	MIMEApplicationForm                  = "application/x-www-form-urlencoded"
 	MIMEApplicationProtobuf              = "application/protobuf"
 	MIMEApplicationMsgpack               = "application/msgpack"
+	MIMEApplicationXMsgpack               = "application/x-msgpack"
 	MIMETextHTML                         = "text/html"
+	MIMETextXML                          = "text/xml"
 	MIMETextHTMLCharsetUTF8              = MIMETextHTML + "; " + CharsetUTF8
 	MIMETextPlain                        = "text/plain"
 	MIMETextPlainCharsetUTF8             = MIMETextPlain + "; " + CharsetUTF8

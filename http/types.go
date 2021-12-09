@@ -13,6 +13,7 @@ type Values interface {
 	Add(key, value string)
 	Set(key, value string)
 	Del(key string)
+	All() map[string][]string
 }
 
 type URL interface {

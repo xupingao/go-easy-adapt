@@ -33,6 +33,10 @@ func (v *values) Set(key string, value string) {
 	v.rawValues.Set(key, value)
 }
 
+func (v *values)  All() map[string][]string {
+	return *(v.rawValues)
+}
+
 type URL struct {
 	url   *url.URL
 	query http.Values

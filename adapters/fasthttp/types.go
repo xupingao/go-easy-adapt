@@ -6,8 +6,10 @@ import (
 	"github.com/xupingao/go-easy-adapt/http"
 	"net/url"
 )
+
 type argValues struct {
-	args *fasthttp.Args
+	args   *fasthttp.Args
+	values *url.Values
 }
 
 func (u *argValues) Add(key string, value string) {
@@ -31,6 +33,19 @@ func (u *argValues) Gets(key string) []string {
 		return []string{v}
 	}
 	return []string{}
+}
+
+func (v *argValues) All() map[string][]string {
+	if v.values != nil {
+		return *v.values
+	}
+	r := url.Values{}
+	v.args.VisitAll(func(k, v []byte) {
+		key := engine.Bytes2str(k)
+		r.Add(key, engine.Bytes2str(v))
+	})
+	v.values = &r
+	return *v.values
 }
 
 type formValues struct {
@@ -61,6 +76,10 @@ func (v *formValues) Set(key string, value string) {
 	v.rawValues.Set(key, value)
 }
 
+func (v *formValues) All() map[string][]string {
+	return *(v.rawValues)
+}
+
 type URL struct {
 	url   *fasthttp.URI
 	query http.Values
@@ -89,7 +108,7 @@ func (u *URL) QueryValues(name string) []string {
 
 func (u *URL) Query() http.Values {
 	if u.query == nil {
-		u.query = &argValues{u.url.QueryArgs()}
+		u.query = &argValues{u.url.QueryArgs(), nil}
 	}
 	return u.query
 }

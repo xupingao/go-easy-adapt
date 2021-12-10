@@ -5,6 +5,7 @@ type Header interface {
 	Del(string)
 	Get(string) string
 	Set(string, string)
+	All() map[string][]string
 }
 
 type Values interface {

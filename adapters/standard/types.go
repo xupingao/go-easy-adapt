@@ -3,6 +3,7 @@ package standard
 import (
 	"github.com/xupingao/go-easy-adapt/http"
 	"net/url"
+	std "net/http"
 )
 
 type values struct {
@@ -98,4 +99,10 @@ func (u *URL) Object() interface{} {
 	return u.url
 }
 
+type header struct {
+	std.Header
+}
 
+func (h *header)All()map[string][]string {
+	return h.Header
+}

@@ -56,6 +56,8 @@ type httpRequest struct {
 	query    http.Values
 	postForm http.Values
 	form     http.Values
+	header http.Header
+	trailer http.Header
 }
 
 func (r *httpRequest) Scheme() string {
@@ -103,7 +105,10 @@ func (r *httpRequest) SetMethod(method string) {
 }
 
 func (r *httpRequest) Header() http.Header {
-	return r.Request.Header
+	if r.header == nil {
+		r.header = &header{ r.Request.Header}
+	}
+	return r.header
 }
 
 func (r *httpRequest) RemoteAddr() string {
@@ -202,7 +207,10 @@ func (r *httpRequest) TransferEncoding() []string {
 	return r.Request.TransferEncoding
 }
 func (r *httpRequest) Trailer() http.Header {
-	return r.Request.Trailer
+	if r.trailer == nil {
+		r.trailer = &header{ r.Request.Trailer}
+	}
+	return r.trailer
 }
 
 func (r *httpRequest) MultipartReader() (*multipart.Reader, error) {
@@ -232,6 +240,8 @@ type httpResponse struct {
 	status int
 	size   int64
 	writer io.Writer
+
+	header http.Header
 }
 
 func (r *httpResponse) WriteHeader(statusCode int) {
@@ -303,7 +313,10 @@ func (r *httpResponse) Hijacker(fn func(net.Conn)) error {
 }
 
 func (r *httpResponse) Header() http.Header {
-	return r.ResponseWriter.Header()
+	if r.header == nil {
+		r.header = &header{r.ResponseWriter.Header()}
+	}
+	return r.header
 }
 
 func (r *httpResponse) HeaderWritten() bool {

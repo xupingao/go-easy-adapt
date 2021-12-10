@@ -5,6 +5,7 @@ import (
 	"github.com/webx-top/echo/engine"
 	"github.com/xupingao/go-easy-adapt/http"
 	"net/url"
+	std "net/http"
 )
 
 type argValues struct {
@@ -136,12 +137,12 @@ func (u *URL) reset(url *fasthttp.URI) {
 type (
 	RequestHeader struct {
 		header *fasthttp.RequestHeader
-		stdhdr *http.Header
+		stdhdr *std.Header
 	}
 
 	ResponseHeader struct {
 		header *fasthttp.ResponseHeader
-		stdhdr *http.Header
+		stdhdr *std.Header
 	}
 )
 
@@ -160,6 +161,18 @@ func (h *RequestHeader) Get(key string) string {
 func (h *RequestHeader) Set(key, val string) {
 	h.header.Set(key, val)
 }
+func (h *RequestHeader) All()map[string][]string {
+	if h.stdhdr != nil {
+		return *h.stdhdr
+	}
+	hdr := std.Header{}
+	h.header.VisitAll(func(key, value []byte) {
+		hdr.Add(string(key), string(value))
+	})
+	h.stdhdr = &hdr
+	return hdr
+}
+
 
 func (h *RequestHeader) Object() interface{} {
 	return h.header
@@ -190,4 +203,16 @@ func (h *ResponseHeader) Object() interface{} {
 
 func (h *ResponseHeader) reset(hdr *fasthttp.ResponseHeader) {
 	h.header = hdr
+}
+
+func (h *ResponseHeader) All()map[string][]string {
+	if h.stdhdr != nil {
+		return *h.stdhdr
+	}
+	hdr := std.Header{}
+	h.header.VisitAll(func(key, value []byte) {
+		hdr.Add(string(key), string(value))
+	})
+	h.stdhdr = &hdr
+	return hdr
 }

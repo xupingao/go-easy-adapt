@@ -80,7 +80,12 @@ func (s *server) Run() error {
 		return err
 	}
 
-	return s.Serve(s.listener)
+	return s.Server.Serve(s.listener)
+}
+
+func (s server) Serve(listener net.Listener) error {
+	s.SetListener(listener)
+	return s.Run()
 }
 
 func (s *server) ListenAndServeTLS(addr, certFile, keyFile string, handler http.Handler) error {

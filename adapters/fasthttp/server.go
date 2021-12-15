@@ -80,7 +80,12 @@ func (s server) Run() error {
 	if err := s.initListener(); err != nil {
 		return err
 	}
-	return s.Serve(s.listener)
+	return s.Server.Serve(s.listener)
+}
+
+func (s server)Serve(listener net.Listener) error {
+	s.SetListener(listener)
+	return s.Run()
 }
 
 func (s server) ListenAndServeTLS(addr, certFile, keyFile string, engine http.Handler) error {
@@ -113,11 +118,12 @@ func (s *server) initTlSConfig() {
 }
 
 func (s *server) initListener() error {
-	var ln net.Listener
-	var err error
 	if s.listener != nil {
 		return nil
 	}
+
+	var ln net.Listener
+	var err error
 
 	if s.config.TLS {
 		s.initTlSConfig()

@@ -18,6 +18,10 @@ import (
 
 var _ http.Context = (*fast_context)(nil)
 
+func NewContext(requestCtx *fasthttp.RequestCtx) http.Context {
+	return wrapFastConext(requestCtx)
+}
+
 func wrapFastConext(requestCtx *fasthttp.RequestCtx) http.Context {
 	return fast_context{
 		rawRequestCtx: requestCtx,

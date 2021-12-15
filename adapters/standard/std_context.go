@@ -13,6 +13,10 @@ import (
 
 var _ http.Context = (*std_context)(nil)
 
+func NewContext(writer net_HTTP.ResponseWriter, req *net_HTTP.Request)http.Context {
+	return wrapStdConext(writer, req)
+}
+
 func wrapStdConext(writer net_HTTP.ResponseWriter, req *net_HTTP.Request) http.Context {
 	return std_context{
 		rawRequest:        req,

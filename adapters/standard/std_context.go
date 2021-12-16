@@ -9,6 +9,7 @@ import (
 	"mime/multipart"
 	"net"
 	net_HTTP "net/http"
+	"sync"
 )
 
 var _ http.Context = (*std_context)(nil)
@@ -16,6 +17,100 @@ var _ http.Context = (*std_context)(nil)
 func NewContext(writer net_HTTP.ResponseWriter, req *net_HTTP.Request)http.Context {
 	return wrapStdConext(writer, req)
 }
+
+type ContextPool struct {
+	context        sync.Pool
+	request        sync.Pool
+	response       sync.Pool
+	//requestHeader  sync.Pool
+	//responseHeader sync.Pool
+	//url            sync.Pool
+}
+func NewContextPool() *ContextPool {
+	return &ContextPool{
+		context: sync.Pool{
+			New: func() interface{} {
+				return &std_context{}
+			},
+		},
+		request: sync.Pool{
+			New: func() interface{} {
+				return &httpRequest{}
+			},
+		},
+		response: sync.Pool{
+			New: func() interface{} {
+				return &httpResponse{}
+			},
+		},
+		//requestHeader: sync.Pool{
+		//	New: func() interface{} {
+		//		return &Header{}
+		//	},
+		//},
+		//responseHeader: sync.Pool{
+		//	New: func() interface{} {
+		//		return &Header{}
+		//	},
+		//},
+		//url: sync.Pool{
+		//	New: func() interface{} {
+		//		return &URL{}
+		//	},
+		//},
+	}
+}
+
+func  (p *ContextPool)AllocateContext(writer net_HTTP.ResponseWriter, request *net_HTTP.Request) http.Context {
+	// Request
+	ctx := p.context.Get().(*std_context)
+	req := p.request.Get().(*httpRequest)
+	ctx.rawResponseWriter = writer
+	ctx.rawRequest = request
+	req.Request = request
+
+	//reqHdr := s.pool.requestHeader.Get().(*Header)
+	//reqHdr.reset(r.Header)
+	//reqURL := s.pool.url.Get().(*URL)
+	//reqURL.reset(r.URL)
+	//req.reset(r, reqHdr, reqURL)
+	//req.config = s.config
+
+	// Response
+	res := p.response.Get().(*httpResponse)
+	res.ResponseWriter = writer
+
+	ctx.response = res
+	ctx.request = req
+	return ctx
+	////resHdr := s.pool.responseHeader.Get().(*Header)
+	////resHdr.reset(w.Header())
+	////res.reset(w, r, resHdr)
+	////res.config = s.config
+	//
+	//s.handler.ServeHTTP(req, res)
+	//
+	//s.pool.request.Put(req)
+	//s.pool.requestHeader.Put(reqHdr)
+	//s.pool.url.Put(reqURL)
+	//s.pool.response.Put(res)
+	//s.pool.responseHeader.Put(resHdr)
+}
+
+
+func  (p *ContextPool)ReleaseContext(ctx http.Context)  {
+	context, ok := ctx.(*std_context)
+	if !ok {
+		return
+	}
+	context.request.reset()
+	context.response.reset()
+	p.request.Put(context.request)
+	p.response.Put(context.response)
+	context.reset()
+	p.context.Put(context)
+}
+
 
 func wrapStdConext(writer net_HTTP.ResponseWriter, req *net_HTTP.Request) http.Context {
 	return std_context{
@@ -29,9 +124,17 @@ func wrapStdConext(writer net_HTTP.ResponseWriter, req *net_HTTP.Request) http.C
 type std_context struct {
 	rawRequest        *net_HTTP.Request
 	rawResponseWriter net_HTTP.ResponseWriter
-	request           http.HTTPRequest
-	response          http.HTTPResponse
+	request           *httpRequest
+	response          *httpResponse
 }
+
+func (c *std_context) reset()  {
+	c.rawRequest = nil
+	c.rawResponseWriter = nil
+	c.request = nil
+	c.response = nil
+}
+
 
 func (c std_context) Request() http.HTTPRequest {
 	return c.request
@@ -62,6 +165,15 @@ type httpRequest struct {
 	form     http.Values
 	header http.Header
 	trailer http.Header
+}
+
+func (r *httpRequest) reset() {
+	r.url = nil
+	r.query = nil
+	r.postForm = nil
+	r.form = nil
+	r.header = nil
+	r.trailer = nil
 }
 
 func (r *httpRequest) Scheme() string {
@@ -246,6 +358,14 @@ type httpResponse struct {
 	writer io.Writer
 
 	header http.Header
+}
+
+func (r *httpResponse) reset() {
+	r.writen = false
+	r.status = 0
+	r.size = 0
+	r.writer = nil
+	r.header = nil
 }
 
 func (r *httpResponse) WriteHeader(statusCode int) {

@@ -3,10 +3,9 @@ package standard
 import (
 	"context"
 	"crypto/tls"
+	"github.com/xupingao/go-easy-adapt/http"
 	"net"
 	net_HTTP "net/http"
-
-	"github.com/xupingao/go-easy-adapt/http"
 )
 
 var defalutAddr = ":8080"
@@ -16,8 +15,9 @@ var _ http.Server = (*server)(nil)
 
 type server struct {
 	*net_HTTP.Server
-	config   *Config
-	listener net.Listener
+	config      *Config
+	listener    net.Listener
+	contextPool *ContextPool
 }
 
 func (s *server) SetListener(listener net.Listener) {
@@ -68,8 +68,9 @@ func NewWithTLS(addr, certFile, keyFile string, opts ...ConfigSetter) *server {
 
 func NewWithConfig(c *Config) (s *server) {
 	s = &server{
-		Server: &net_HTTP.Server{},
-		config: c,
+		Server:      &net_HTTP.Server{},
+		config:      c,
+		contextPool: NewContextPool(),
 	}
 	return
 }
@@ -162,7 +163,7 @@ func (s *server) applyConfig() {
 	if s.config.TLSConfig != nil {
 		s.Server.TLSConfig = s.config.TLSConfig
 	}
-	s.Server.Handler = wrapHandler(s.config.Handler)
+	s.Server.Handler = wrapHandler(s.config.Handler, s)
 	s.Server.ReadTimeout = s.config.ReadTimeout
 	s.Server.WriteTimeout = s.config.WriteTimeout
 	s.Server.Addr = s.config.Address
@@ -193,13 +194,15 @@ func DefaultHandler() http.Handler {
 
 type handlerWrapper struct {
 	handler http.Handler
+	s       *server
 }
 
-func wrapHandler(handler http.Handler) handlerWrapper {
-	return handlerWrapper{handler: handler}
+func wrapHandler(handler http.Handler, s *server) *handlerWrapper {
+	return &handlerWrapper{handler: handler, s: s}
 }
 
-func (wp handlerWrapper) ServeHTTP(w net_HTTP.ResponseWriter, r *net_HTTP.Request) {
-	ctx := wrapStdConext(w, r)
+func (wp *handlerWrapper) ServeHTTP(w net_HTTP.ResponseWriter, r *net_HTTP.Request) {
+	ctx := wp.s.contextPool.AllocateContext(w, r)
 	wp.handler.ServeHTTP(ctx)
+	wp.s.contextPool.ReleaseContext(ctx)
 }

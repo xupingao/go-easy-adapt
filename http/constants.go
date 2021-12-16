@@ -175,7 +175,7 @@ const (
 	MIMEApplicationForm                  = "application/x-www-form-urlencoded"
 	MIMEApplicationProtobuf              = "application/protobuf"
 	MIMEApplicationMsgpack               = "application/msgpack"
-	MIMEApplicationXMsgpack               = "application/x-msgpack"
+	MIMEApplicationXMsgpack              = "application/x-msgpack"
 	MIMETextHTML                         = "text/html"
 	MIMETextXML                          = "text/xml"
 	MIMETextHTMLCharsetUTF8              = MIMETextHTML + "; " + CharsetUTF8
@@ -213,7 +213,7 @@ const (
 	HeaderServer              = "Server"
 	HeaderOrigin              = "Origin"
 	HeaderCacheControl        = "Cache-Control"
-
+	HeaderConnection          = "Connection"
 	// Access control
 	HeaderAccessControlRequestMethod    = "Access-Control-Request-Method"
 	HeaderAccessControlRequestHeaders   = "Access-Control-Request-Headers"

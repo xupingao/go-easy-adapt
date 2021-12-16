@@ -11,6 +11,7 @@ type Server interface {
 	DisposedServer() interface{}
 	Run() error
 	SetHandler(Handler)
+	Serve(listener net.Listener) error
 	SetListener(listener net.Listener)
 	Shutdown(ctx context.Context) error
 }

@@ -79,6 +79,7 @@ func  (p *ContextPool)AllocateContext(writer net_HTTP.ResponseWriter, request *n
 	// Response
 	res := p.response.Get().(*httpResponse)
 	res.ResponseWriter = writer
+	res.writer =writer
 
 	ctx.response = res
 	ctx.request = req
